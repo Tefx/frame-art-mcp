@@ -41,7 +41,7 @@ phases:
   - id: core_implementation.implement_core
     name: Implement frame-art-mcp package, matte optics guide, README, and unit test
       suite
-    status: claimed
+    status: done
     description: "step_type: implementation\nrepo_change_policy: modifies_repo\n\n\
       [REQUIRES_SKILL: code-hygiene]\n\nDeliver:\n1. `pyproject.toml` defining `frame-art-mcp`\
       \ (`version = \"0.1.0\"`, `requires-python = \">=3.11\"`, console entrypoint\
@@ -159,6 +159,37 @@ phases:
     agent: python-senior
     claimed_by: python-senior
     claimed_at: '2026-11-08T19:58:42.878701Z'
+    done_at: '2026-11-08T20:52:37.738019+00:00'
+    evidence: 'Artifact:
+
+      - Commit: 92a8e48841b12d32f5c3dc86bf509bb3995af473 (retained ref: refs/vectl/candidates/core_implementation.implement_core)
+
+      - Files: pyproject.toml, README.md, .gitignore, src/frame_art_mcp/{__init__,discovery,optics,ledger,tv_client,guide,server}.py,
+      tests/{conftest,test_discovery,test_optics,test_ledger,test_server}.py (15 files,
+      4288 insertions)
+
+
+      Verification:
+
+      - Run: uv run pytest -q -> 102 passed in 18.94s (exit 0)
+
+      - Run: uv run python -c "import frame_art_mcp.discovery, frame_art_mcp.optics,
+      frame_art_mcp.ledger, frame_art_mcp.tv_client, frame_art_mcp.server" -> passed
+      (exit 0)
+
+      - Run: ruff check src tests && ruff format --check src tests -> All checks passed
+      (exit 0)
+
+      - Code-hygiene audit: CLEAN (zero dead code, zero unwired features, full 5-scenario
+      hermetic test coverage)
+
+      - Worktree cleanup: removed .vectl/worktrees/core_implementation.implement_core
+      (+20512 KB free space reclaimed)
+
+
+      Spec link:
+
+      - docs/SPEC.md Sections 1-5'
   - id: core_implementation.gate
     name: Verify core implementation against docs/SPEC.md and unit test suite
     status: pending
