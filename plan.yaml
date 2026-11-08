@@ -29,7 +29,7 @@ project_guidance: '1. Treat docs/SPEC.md as the authoritative contract for all m
 phases:
 - id: core_implementation
   name: Core MCP Server, Optical Pipeline, Crash-Safe Ledger & Unit Tests
-  status: pending
+  status: in_progress
   gate: All deterministic unit and protocol-double tests (tests/test_optics.py, tests/test_ledger.py,
     tests/test_discovery.py, tests/test_server.py) pass via pytest and all docs/SPEC.md
     Sections 1-5 contracts are verified.
@@ -41,7 +41,7 @@ phases:
   - id: core_implementation.implement_core
     name: Implement frame-art-mcp package, matte optics guide, README, and unit test
       suite
-    status: pending
+    status: claimed
     description: "step_type: implementation\nrepo_change_policy: modifies_repo\n\n\
       [REQUIRES_SKILL: code-hygiene]\n\nDeliver:\n1. `pyproject.toml` defining `frame-art-mcp`\
       \ (`version = \"0.1.0\"`, `requires-python = \">=3.11\"`, console entrypoint\
@@ -157,6 +157,8 @@ phases:
     refs:
     - docs/SPEC.md
     agent: python-senior
+    claimed_by: python-senior
+    claimed_at: '2026-11-08T19:58:42.878701Z'
   - id: core_implementation.gate
     name: Verify core implementation against docs/SPEC.md and unit test suite
     status: pending
