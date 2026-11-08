@@ -1,0 +1,309 @@
+# =============================================================
+# MANAGED FILE — DO NOT EDIT DIRECTLY
+# This file is owned by vectl. Direct edits bypass CAS write
+# protection, lock recalculation, and schema validation.
+#
+# Use: vectl_* MCP tools (preferred)  OR  vectl <command> (CLI fallback)
+# Docs: vectl guide  OR  MCP: vectl_guide
+# =============================================================
+version: 1
+project: frame-art-mcp
+strategy_ref: docs/SPEC.md
+context: Standalone zero-preset MCP server turning a Samsung The Frame 65 TV (QA65LS03BAKXXS
+  at 192.168.88.6, Matte Display, Art API v4.3.4.0) into a safe, optically conditioned
+  4K (3840x2160) visual output surface via 4 mechanism tools (frame_inspect, frame_put,
+  frame_switch, frame_clear) and MCP resource frame://guide/matte-optics.
+project_guidance: '1. Treat docs/SPEC.md as the authoritative contract for all module
+  boundaries, schemas, timeouts, optical formulas, and safety invariants.
+
+  2. Keep all repository source comments, docstrings, tool metadata, error messages,
+  and README.md in English (only the explicit ''大屏看图'' phrase quoted in docs/SPEC.md
+  Section 5 Tool 2 docstring is preserved verbatim).
+
+  3. Hardware safety gate: never send remote key presses, power-on commands, or set_artmode(''on'');
+  all device writes (upload, select_image, delete) require tv_mode == ''art'', and
+  frame_inspect is 100% read-only with a non-interactive pairing guard.
+
+  4. Ownership invariant: never delete any content_id not confirmed in owned_ids or
+  equal to baseline_content_id.'
+phases:
+- id: core_implementation
+  name: Core MCP Server, Optical Pipeline, Crash-Safe Ledger & Unit Tests
+  status: pending
+  gate: All deterministic unit and protocol-double tests (tests/test_optics.py, tests/test_ledger.py,
+    tests/test_discovery.py, tests/test_server.py) pass via pytest and all docs/SPEC.md
+    Sections 1-5 contracts are verified.
+  context: Scaffold pyproject.toml, src/frame_art_mcp/ (discovery.py, optics.py, ledger.py,
+    tv_client.py, server.py, built-in optics_guide, and frame://guide/matte-optics
+    resource), English README.md, and deterministic hermetic unit/protocol-double
+    tests covering all 5 acceptance scenarios in docs/SPEC.md.
+  steps:
+  - id: core_implementation.implement_core
+    name: Implement frame-art-mcp package, matte optics guide, README, and unit test
+      suite
+    status: pending
+    description: "step_type: implementation\nrepo_change_policy: modifies_repo\n\n\
+      [REQUIRES_SKILL: code-hygiene]\n\nDeliver:\n1. `pyproject.toml` defining `frame-art-mcp`\
+      \ (`version = \"0.1.0\"`, `requires-python = \">=3.11\"`, console entrypoint\
+      \ `frame-art-mcp = \"frame_art_mcp.server:main\"`, runtime dependencies `mcp[cli]`,\
+      \ `samsungtvws[async,encrypted]`, `pillow`, `numpy`, `scipy`, `httpx`, and dev/test\
+      \ dependencies `pytest`, `pytest-asyncio`).\n2. `src/frame_art_mcp/` modules\
+      \ strictly implementing `docs/SPEC.md` Sections 1–5:\n   - `discovery.py`: 3-tier\
+      \ discovery (`GET http://<ip>:8001/api/v2/` cached IP `0.6s` -> SSDP UDP `M-SEARCH`\
+      \ `1.0s` -> active `/24` subnet probe with `asyncio.Semaphore(48)` and `0.4s`\
+      \ connect timeout), global `FRAME_TV_DUID` constraint, one-off `host` override\
+      \ (`1.5s` timeout without overwriting `bound_duid` in `devices.json`), strict\
+      \ `bound_duid` anti-hijack pinning (`duid_mismatch`, `target_unavailable`, `ambiguous_multiple_tvs`),\
+      \ and persistent `~/.local/share/frame-art-mcp/devices.json`.\n   - `optics.py`:\
+      \ Strict 5-stage float32 optical conditioning pipeline:\n     - Stage 1: `<=\
+      \ 120,000,000` pixel guard, single-frame/non-animated guard, `ImageOps.exif_transpose(img)`,\
+      \ ICC/CMYK/16-bit conversion to float32 sRGB `[0.0 .. 255.0]`, and transparent\
+      \ PNG (`RGBA`/`LA`) pre-compositing using foreground (`alpha > 32/255`) median\
+      \ luminance `L_fg >= 0.55` (or `fit == \"pad_slate\"`) onto `#222428` (`34,\
+      \ 36, 40`), else `#EAE4D7` (`234, 228, 215`).\n     - Stage 2: Exact aspect-ratio\
+      \ Lanczos scaling (`fit=\"contain\" | \"pad_paper\" | \"pad_slate\" | \"cover\"\
+      `) to `3840x2160` (`content_bbox = [x0, y0, x0 + W_c, y0 + H_c]`), with zero\
+      \ aspect-ratio distortion.\n     - Stage 3: Content-scoped pre-LUT diagnostics\
+      \ on `content_bbox` and `optical_grade` tonal mapping (`\"matte_natural\"` with\
+      \ C1-continuous Hermite shadow toe-lift `c < 64.0` to floor `(22.0, 22.0, 21.0)`,\
+      \ C1-continuous highlight roll-off `c > 215.0` to peak `(243.0, 241.0, 236.0)`,\
+      \ and HSV saturation soft-compression `S > 0.88 -> 0.88 + 0.06 * tanh((S - 0.88)\
+      \ / 0.06)`; vs `\"raw\"` leaving content pixels untouched).\n     - Stage 4:\
+      \ Gallery mat placement (`#EAE4D7` for `\"pad_paper\"` or `\"contain\"` when\
+      \ outer-8px content border median luminance `L_edge >= 0.42`; `#222428` for\
+      \ `\"pad_slate\"` or `L_edge < 0.42`; zero artificial bevel/drop-shadow lines),\
+      \ deterministic `np.random.Generator(np.random.PCG64(seed))` triangular dithering\
+      \ (`+/- 1.0 LSB`) seeded from the first 8 bytes of `sha256(input_file_bytes)`\
+      \ (`dry_run=True` byte-identical to `dry_run=False`), and `3840x2160` JPEG encoding\
+      \ (`quality=96, subsampling=0` `4:4:4`).\n     - Stage 5: Content-scoped diagnostics\
+      \ (`max_dark_blob_pct` on `ceil(H_c/8) x ceil(W_c/8)` cells with 8-connected\
+      \ `scipy.ndimage.label(np.ones((3,3)))` where `cell_mean_L < 22.0`, pre-dither\
+      \ `synthetic_flatness_pct` on `ceil(H_c/16) x ceil(W_c/16)` blocks with mean\
+      \ absolute 3x3 discrete Laplacian `< 0.75 LSB`, `neon_gamut_pct`, `glare_pct`,\
+      \ `transition_delta_pct`), bounded LRU `previews/` cache (max 16 entries pruned\
+      \ by mtime), and 1:1 native-pixel `retinal_crops` (`detail_crop_path` max Sobel\
+      \ gradient energy, `tonal_crop_path` min mean luminance, `min(W_c, H_c) < 64`\
+      \ skip guard returning `crop_skipped_reason=\"content_dimension_below_64px\"\
+      `, `16px` inset when dimension `>= 544`).\n   - `ledger.py` & `tv_client.py`:\n\
+      \     - Authoritative 4-state mode probe (`\"art\" | \"tv\" | \"off\" | \"unknown\"\
+      ` combining `:8001/api/v2/` `PowerState` `1.5s` and `:8002` `art.get_artmode()`\
+      \ `3.0s`), with non-interactive `frame_inspect` pairing guard (`TokenAuthSupport\
+      \ == \"true\"` and missing/empty/rejected `token.txt` -> `tv_mode=\"unknown\"\
+      , safe_to_project=False, reason=\"pairing_required\"` without interactive prompt).\n\
+      \     - Crash-safe WAL `ledger.json` (`schema_version=3`, write to `ledger.json.tmp.<pid>`\
+      \ + `os.fsync(fd)` + `os.replace` + `os.fsync(dir_fd)`, corrupt file quarantine\
+      \ to `ledger.corrupt.<ts>.json` initializing clean `owned_ids=[]` with zero\
+      \ remote deletes).\n     - Strict ownership, human-override, and 4-step write-path\
+      \ reconciliation (`Steps A-D`): `owned_ids` populated solely from confirmed\
+      \ `art.upload()` return values; interrupted upload diffs recorded in `unattributed_candidates`\
+      \ and never added to `owned_ids` or `pending_delete_ids`; `art.delete(del_id)`\
+      \ asserts `del_id in owned_ids and del_id != baseline_content_id`; interrupted\
+      \ `select` WAL recovery (`slot is None` baseline vs managed slot); `expected_displayed_id`\
+      \ human-override detection (`user_override_detected=True`, `control_generation\
+      \ += 1`, cancelling active sequences); TTL expiry sweep (`Step B`) for both\
+      \ `slots` and superseded `displayed` revisions; screen eviction before delete\
+      \ (`Step C`) with fresh mode/override re-check and `display_history` / `baseline_content_id`\
+      \ fallback; per-delete fresh guard (`Step D`).\n     - Single serialized synchronous\
+      \ worker thread per device acquiring/releasing `fcntl.flock(ledger.lock)` inside\
+      \ the synchronous worker function (cancellation-safe across `asyncio.CancelledError`)\
+      \ and awaiting in-flight worker completion on server shutdown; `request_id`\
+      \ idempotency (`params_hash`, `request_id_conflict`, `in_progress`/`outcome_unknown`\
+      \ reconciliation); `frame_put` 2-stage gate (`Gate #1` pre-upload, `Gate #2`\
+      \ pre-select checking `tv_mode == \"art\"` and `current_id == pre_upload_current_id`);\
+      \ in-process `(slot, revision)` TTL timers and `control_generation`-bound `frame_switch`\
+      \ sequence runner (`slot_expired` guard).\n   - `server.py` (plus built-in `optics_guide`\
+      \ and MCP resource `frame://guide/matte-optics`):\n     - Exact MCP tools `frame_inspect`,\
+      \ `frame_put` (embedding the exact docstring from `docs/SPEC.md` Section 5 Tool\
+      \ 2), `frame_switch`, `frame_clear`, and resource `frame://guide/matte-optics`\
+      \ (Matte Display Optical Laws + 4 self-contained 15-line Python/NumPy/SciPy\
+      \ recipes: Frequency-Separated Relief Transfer, Optical Penumbra Shadow Projection,\
+      \ Deckle-Edge Torn Paper / Intaglio Plate Mask, and IIIF Museum 4K 1:1 Crop\
+      \ Fetcher).\n3. `README.md` (in English) documenting architecture, hardware\
+      \ safety gate, crash-safe ledger, 5-stage Matte Display optical conditioning,\
+      \ installation, and MCP tool/resource reference.\n4. Deterministic hermetic\
+      \ unit and protocol-double tests (`tests/test_optics.py`, `tests/test_ledger.py`,\
+      \ `tests/test_discovery.py`, `tests/test_server.py`) covering all 5 acceptance\
+      \ scenarios:\n   - Scenario 1: Unattributed crash/timeout upload diffs go to\
+      \ `unattributed_candidates` and are never deleted; corrupt `ledger.json` quarantines\
+      \ to `ledger.corrupt.<ts>.json` with `owned_ids=[]`.\n   - Scenario 2: `frame_inspect`\
+      \ is 100% read-only on the TV, enforces the non-interactive pairing guard (`reason=\"\
+      pairing_required\"`), and returns `optics_guide` when `include_optics_guide=True`.\n\
+      \   - Scenario 3: Stage (`show=False`) vs display (`show=True`) separation,\
+      \ superseded displayed revision retention until replaced/expired, TTL expiry\
+      \ sweep (`Steps B-D`), `Gate #2` race-window reduction (`staged_only_tv_left_art_mode`,\
+      \ `staged_only_user_override_during_upload`), and human override (`user_override_detected=True`,\
+      \ `control_generation += 1`).\n   - Scenario 4: 5-stage `optics.py` pipeline\
+      \ (RGBA luminance-adaptive backing `#222428` vs `#EAE4D7`, non-16:9 `fit=\"\
+      contain\"` Lanczos scaling without distortion, `matte_natural` C1 Hermite toe-lift/roll-off\
+      \ vs `raw`, deterministic `PCG64` dithering parity between `dry_run=True` and\
+      \ `dry_run=False`, content-scoped diagnostics, and 1:1 `512x512` retinal crops\
+      \ + `<64px` skip guard).\n   - Scenario 5: `frame_switch` single-slot switch,\
+      \ `slot_expired` rejection, timed sequence execution and immediate cancellation\
+      \ on `control_generation` bump / human override / `tv_mode != \"art\"`, and\
+      \ `request_id` idempotency across write tools.\n\nBoundary:\n- Owner: `python-senior`.\n\
+      - Mutable surface: `pyproject.toml`, `README.md`, `src/frame_art_mcp/**`, `tests/**`.\n\
+      - Protected state: `docs/SPEC.md` and `plan.yaml` must not be modified; unit\
+      \ tests must be hermetic (`tmp_path` + protocol doubles) with zero live TV network\
+      \ traffic.\n\nAdmit:\n- Authoritative specification `docs/SPEC.md` and reference\
+      \ optical scripts in `/Users/tefx/Projects/HACSWorkspace/artifacts/ha-tv-trompe-loeil-20261108/`.\n\
+      - Verification: `uv run pytest -q` passes 100% of unit and protocol-double tests,\
+      \ and `[REQUIRES_SKILL: code-hygiene]` audit passes with zero dead code or unwired\
+      \ paths.\n\nRecovery:\n- Repair any failing unit test, contract mismatch, or\
+      \ code-hygiene issue in place within the step worktree before completing the\
+      \ step.\n"
+    verification: cd /Users/tefx/Projects/frame-art-mcp && uv run pytest -q && uv
+      run python -c "import frame_art_mcp.discovery, frame_art_mcp.optics, frame_art_mcp.ledger,
+      frame_art_mcp.tv_client, frame_art_mcp.server"
+    refs:
+    - docs/SPEC.md
+    agent: python-senior
+  - id: core_implementation.gate
+    name: Verify core implementation against docs/SPEC.md and unit test suite
+    status: pending
+    description: 'step_type: gate
+
+      repo_change_policy: no_repo_change
+
+
+      Deliver:
+
+      - Phase-1 gate acceptance decision over `core_implementation` confirming `pyproject.toml`,
+      `src/frame_art_mcp/` (`discovery.py`, `optics.py`, `ledger.py`, `tv_client.py`,
+      `server.py`), `README.md`, and `tests/` (`test_optics.py`, `test_ledger.py`,
+      `test_discovery.py`, `test_server.py`) satisfy all `docs/SPEC.md` Sections 1–5
+      contracts and all 5 acceptance scenarios.
+
+
+      Boundary:
+
+      - Owner: `gate-reviewer`.
+
+      - Read-only (`no_repo_change`, zero live TV writes).
+
+
+      Admit:
+
+      - Integrated repository state from `core_implementation.implement_core`, `docs/SPEC.md`,
+      and `uv run pytest -q` execution output.
+
+      - Excludes live Samsung Frame 65 E2E execution, GitHub repository push/tagging,
+      and `/Users/tefx/dotfiles/agent/tela.yaml` registration (owned by phase `live_integration_and_release`).
+
+
+      Recovery:
+
+      - On any spec discrepancy or failing test, report exact file/line counterexamples
+      so Orchestrator schedules a scoped repair before re-running this gate in Delta
+      mode.
+
+      '
+    verification: cd /Users/tefx/Projects/frame-art-mcp && uv run pytest -q
+    refs:
+    - docs/SPEC.md
+    depends_on:
+    - core_implementation.implement_core
+    agent: gate-reviewer
+- id: live_integration_and_release
+  name: Live Samsung Frame 65 E2E Verification, GitHub v0.1.0 Release & Tela Registration
+  status: locked
+  gate: Live E2E receipt against 192.168.88.6 verified (MY_F0205 and MY_F0206 cleaned
+    up and SAM-S1110760 restored when tv_mode=='art', or safe gate blocking and offline
+    clear queueing verified if off/tv), GitHub repo Tefx/frame-art-mcp pushed with
+    main and annotated tag v0.1.0, and servers.frame registered in /Users/tefx/dotfiles/agent/tela.yaml.
+  context: Run live end-to-end verification against Samsung Frame 65 (QA65LS03BAKXXS
+    at 192.168.88.6), clean up tonight's exploration test IDs (MY_F0205, MY_F0206)
+    and restore baseline SAM-S1110760 (or verify safe gate blocking and offline clear
+    queueing if TV is off/tv), commit all code, publish GitHub repo Tefx/frame-art-mcp
+    with main and annotated tag v0.1.0, and register frame in /Users/tefx/dotfiles/agent/tela.yaml.
+  depends_on:
+  - core_implementation
+  steps:
+  - id: live_integration_and_release.live_e2e_and_release
+    name: Run live Samsung Frame 65 E2E verification, publish GitHub v0.1.0, and register
+      in tela.yaml
+    status: pending
+    description: "step_type: implementation\nrepo_change_policy: modifies_repo\n\n\
+      Deliver:\n1. Live End-to-End Hardware Verification against Samsung Frame 65\
+      \ (`QA65LS03BAKXXS` at `192.168.88.6`) with a recorded JSON verification receipt\
+      \ (saved under `/Users/tefx/Projects/HACSWorkspace/artifacts/ha-tv-trompe-loeil-20261108/frame-art-mcp-live-e2e-receipt.json`\
+      \ or repo-ignored scratch receipt):\n   - Inspect current TV mode via `frame_inspect(include_optics_guide=True,\
+      \ host=\"192.168.88.6\")` and verify `optics_guide` and `frame://guide/matte-optics`\
+      \ resource content.\n   - Seed/adopt tonight's pre-existing exploration state\
+      \ from `/Users/tefx/Projects/HACSWorkspace/artifacts/ha-tv-trompe-loeil-20261108/upload-tidal-palette-receipt.json`\
+      \ (`baseline_content_id = \"SAM-S1110760\"`, test uploads `MY_F0205` and `MY_F0206`\
+      \ in `owned_ids`) into `~/.local/share/frame-art-mcp/<sanitized_duid>/ledger.json`\
+      \ so `frame-art-mcp` tracks the pre-test baseline and tonight's two test uploads.\n\
+      \   - When `tv_mode == \"art\"`:\n     a. Verify `frame_put(dry_run=True)` produces\
+      \ 4K preview and `512x512` `retinal_crops` (`detail_crop_path`, `tonal_crop_path`)\
+      \ with zero TV writes.\n     b. Verify `frame_put` with a 16:9 artwork (e.g.,\
+      \ `/Users/tefx/Projects/HACSWorkspace/artifacts/ha-tv-trompe-loeil-20261108/tidal_karesansui_4k.jpg`,\
+      \ `slot=\"art_16_9\"`, `optical_grade=\"matte_natural\"`, `show=True`).\n  \
+      \   c. Verify `frame_put` with a non-16:9 image / diagram (`fit=\"contain\"\
+      `, `slot=\"diagram_contain\"`, `show=False` then `frame_switch(target=\"diagram_contain\"\
+      )`) confirming zero aspect-ratio distortion and automatic paper/slate mat framing.\n\
+      \     d. Verify `frame_clear(restore_baseline=True)` cleanly deletes all MCP-owned\
+      \ test IDs (including tonight's `MY_F0205` and `MY_F0206` plus the newly staged\
+      \ E2E slots) from `MY-C0002` and restores the TV display to `SAM-S1110760` (`observed_current_id\
+      \ == \"SAM-S1110760\"`, `pending_delete_ids == []`).\n   - If the TV is currently\
+      \ in `tv_mode in (\"off\", \"tv\", \"unknown\")`:\n     a. Never send power-on,\
+      \ remote key, or `set_artmode(\"on\")` commands.\n     b. Verify `frame_put(dry_run=True)`\
+      \ succeeds locally, `frame_put(dry_run=False)` and `frame_switch` safely return\
+      \ `status=\"blocked_by_tv_mode\"`, and `frame_clear(restore_baseline=True)`\
+      \ safely returns `status=\"deferred_offline_clear\"` with `MY_F0205` and `MY_F0206`\
+      \ queued in `pending_delete_ids` and `pending_baseline_restore=True`.\n2. Git\
+      \ Commit, GitHub Repository Creation & Semantic Release Tagging:\n   - Ensure\
+      \ all repository code (`pyproject.toml`, `README.md`, `docs/SPEC.md`, `src/frame_art_mcp/**`,\
+      \ `tests/**`, `AGENTS.md`, `plan.yaml`) is clean and committed on `main` (excluding\
+      \ transient test artifacts/receipts).\n   - Create GitHub repository `Tefx/frame-art-mcp`\
+      \ (`gh repo create Tefx/frame-art-mcp --public --source=. --remote=origin` or\
+      \ push to existing `Tefx/frame-art-mcp`), push `main` to `origin`, and create\
+      \ & push annotated semantic tag `v0.1.0` (`git tag -a v0.1.0 -m \"Release v0.1.0:\
+      \ Initial frame-art-mcp server\"` && `git push origin v0.1.0`).\n3. Tela Registration\
+      \ (`/Users/tefx/dotfiles/agent/tela.yaml`):\n   - Register `servers.frame` pinned\
+      \ to semantic tag `#v0.1.0` (`command: \"uvx\"`, `args: [\"--from\", \"git+https://github.com/Tefx/frame-art-mcp#v0.1.0\"\
+      , \"frame-art-mcp\"]`, `family: \"frame\"`, `type: \"stdio\"`, `tool_prefix:\
+      \ \"frame_\"`, `default_posture: \"read_write\"`, and `tool_overrides` marking\
+      \ `frame_inspect` (`posture: \"read_only\"`)), plus `frame: \"read_write\"`\
+      \ under `profiles.common.capabilities`.\n\nBoundary:\n- Owner: `python-engineer`.\n\
+      - Authorized targets: `/Users/tefx/Projects/frame-art-mcp`, `~/.local/share/frame-art-mcp/`,\
+      \ Samsung Frame 65 at `192.168.88.6` (strictly gated by `tv_mode == \"art\"\
+      `), GitHub remote `Tefx/frame-art-mcp`, and `/Users/tefx/dotfiles/agent/tela.yaml`.\n\
+      - Protected state: Never wake a sleeping TV or interrupt TV viewing; never delete\
+      \ any `content_id` outside confirmed `owned_ids` (plus tonight's explicitly\
+      \ seeded test IDs `MY_F0205`, `MY_F0206`); never delete `SAM-S1110760`.\n\n\
+      Admit:\n- Completed Phase 1 (`core_implementation`), `docs/SPEC.md`, and `/Users/tefx/Projects/HACSWorkspace/artifacts/ha-tv-trompe-loeil-20261108/upload-tidal-palette-receipt.json`.\n\
+      \nRecovery:\n- If any live TV interaction exposes a protocol or socket bug in\
+      \ `src/frame_art_mcp/`, fix it in place, re-run `uv run pytest -q`, re-verify\
+      \ on the TV before tagging `v0.1.0`, and record the final receipt.\n"
+    verification: cd /Users/tefx/Projects/frame-art-mcp && uv run pytest -q && git
+      tag -l v0.1.0 | grep -qx v0.1.0 && grep -q 'frame:' /Users/tefx/dotfiles/agent/tela.yaml
+    refs:
+    - docs/SPEC.md
+    agent: python-engineer
+  - id: live_integration_and_release.gate
+    name: Verify live E2E receipt, GitHub v0.1.0 tag, and tela.yaml registration
+    status: pending
+    description: "step_type: gate\nrepo_change_policy: no_repo_change\n\nDeliver:\n\
+      - Final project and Phase-2 acceptance decision confirming:\n  1. Live E2E verification\
+      \ receipt against `192.168.88.6` (`frame_inspect(include_optics_guide=True)`,\
+      \ `frame_put(dry_run=True)`, `frame_put` 16:9 and non-16:9 `fit=\"contain\"\
+      `, `frame_switch`, and `frame_clear(restore_baseline=True)` removing `MY_F0205`/`MY_F0206`\
+      \ and restoring `SAM-S1110760`, or verified safe gate-blocked/offline-clear\
+      \ behavior if TV was `off`/`tv`).\n  2. Clean Git state pushed to `https://github.com/Tefx/frame-art-mcp`\
+      \ (`main` and annotated tag `v0.1.0` pointing to the verified release commit).\n\
+      \  3. Valid `frame` server registration in `/Users/tefx/dotfiles/agent/tela.yaml`\
+      \ with `tool_prefix: \"frame_\"`, `default_posture: \"read_write\"`, and `frame_inspect`\
+      \ read-only posture override.\n\nBoundary:\n- Owner: `gate-reviewer`.\n- Read-only\
+      \ (`no_repo_change`, zero live TV writes).\n\nAdmit:\n- Completed phases `core_implementation`\
+      \ and `live_integration_and_release.live_e2e_and_release`, live E2E receipt,\
+      \ Git/GitHub remote tags, and `/Users/tefx/dotfiles/agent/tela.yaml`.\n\nRecovery:\n\
+      - Report any unverified acceptance item or tag/config mismatch for scoped repair\
+      \ before final acceptance.\n"
+    verification: cd /Users/tefx/Projects/frame-art-mcp && uv run pytest -q && git
+      tag -v v0.1.0 >/dev/null 2>&1 || git rev-parse v0.1.0^{tag} >/dev/null && grep
+      -A 12 'frame:' /Users/tefx/dotfiles/agent/tela.yaml
+    refs:
+    - docs/SPEC.md
+    depends_on:
+    - live_integration_and_release.live_e2e_and_release
+    agent: gate-reviewer
