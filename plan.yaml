@@ -281,7 +281,7 @@ phases:
   - id: live_integration_and_release.live_e2e_and_release
     name: Run live Samsung Frame 65 E2E verification, publish GitHub v0.1.0, and register
       in tela.yaml
-    status: claimed
+    status: done
     description: "step_type: implementation\nrepo_change_policy: modifies_repo\n\n\
       Deliver:\n1. Live End-to-End Hardware Verification against Samsung Frame 65\
       \ (`QA65LS03BAKXXS` at `192.168.88.6`) with a recorded JSON verification receipt\
@@ -342,6 +342,28 @@ phases:
     agent: python-engineer
     claimed_by: python-engineer
     claimed_at: '2026-11-08T21:00:28.450827Z'
+    done_at: '2026-11-08T21:23:01.783297+00:00'
+    evidence: "Artifact:\n- Commit: 2813de75eadf681ba1e60ecbb798b918616e9002 (retained\
+      \ ref: refs/vectl/candidates/live_integration_and_release.live_e2e_and_release)\n\
+      - GitHub Repository: https://github.com/Tefx/frame-art-mcp (main + annotated\
+      \ tag v0.1.0 -> 2813de75eadf681ba1e60ecbb798b918616e9002)\n- Live E2E Receipt:\
+      \ /Users/tefx/Projects/HACSWorkspace/artifacts/ha-tv-trompe-loeil-20261108/frame-art-mcp-live-e2e-receipt.json\
+      \ (status=PASSED, live_e2e_passed=true)\n- Tela Registration: /Users/tefx/dotfiles/agent/tela.yaml\
+      \ (servers.frame + profiles.common.capabilities.frame)\n\nVerification:\n- Run:\
+      \ uv run pytest -q -> 117 passed in 18.61s (exit 0)\n- Run: ruff check src tests\
+      \ && ruff format --check src tests -> All checks passed (exit 0)\n- Live E2E\
+      \ against Samsung The Frame 65 (192.168.88.6, uuid:c142370e-b312-44d5-9b35-090b08162efd):\n\
+      \  - Standby gate verified: frame_inspect -> tv_mode='off'; frame_put(dry_run=True)\
+      \ -> 3840x2160 preview + 512x512 crops; frame_put(dry_run=False) -> status='blocked_by_tv_mode'\
+      \ with PowerState='standby'.\n  - Art mode E2E verified: frame_inspect(include_optics_guide=True)\
+      \ -> tv_mode='art', safe_to_project=True; frame_put(dry_run=True); frame_put\
+      \ 16:9 (tidal_karesansui_4k.jpg -> MY_F0205 displayed); frame_put 3:2 contain\
+      \ (morro_strand.jpg -> MY_F0206 staged with [300,0,3540,2160] slate mat); frame_switch(target='diagram_contain'\
+      \ -> MY_F0206 displayed); frame_clear(restore_baseline=True) -> status='cleared',\
+      \ deleted MY_F0205 & MY_F0206, restored SAM-S1110760, confirmed MY_F0205 & MY_F0206\
+      \ absent from MY-C0002; restored initial_tv_mode='off' (standby).\n- Worktree\
+      \ cleanup: removed .vectl/worktrees/live_integration_and_release.live_e2e_and_release\
+      \ (+19772 KB free space reclaimed)\n\nSpec link:\n- docs/SPEC.md Sections 1-5"
   - id: live_integration_and_release.gate
     name: Verify live E2E receipt, GitHub v0.1.0 tag, and tela.yaml registration
     status: pending
