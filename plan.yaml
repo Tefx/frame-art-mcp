@@ -265,7 +265,7 @@ phases:
       - docs/SPEC.md Sections 1-5'
 - id: live_integration_and_release
   name: Live Samsung Frame 65 E2E Verification, GitHub v0.1.0 Release & Tela Registration
-  status: pending
+  status: in_progress
   gate: Live E2E receipt against 192.168.88.6 verified (MY_F0205 and MY_F0206 cleaned
     up and SAM-S1110760 restored when tv_mode=='art', or safe gate blocking and offline
     clear queueing verified if off/tv), GitHub repo Tefx/frame-art-mcp pushed with
@@ -281,7 +281,7 @@ phases:
   - id: live_integration_and_release.live_e2e_and_release
     name: Run live Samsung Frame 65 E2E verification, publish GitHub v0.1.0, and register
       in tela.yaml
-    status: pending
+    status: claimed
     description: "step_type: implementation\nrepo_change_policy: modifies_repo\n\n\
       Deliver:\n1. Live End-to-End Hardware Verification against Samsung Frame 65\
       \ (`QA65LS03BAKXXS` at `192.168.88.6`) with a recorded JSON verification receipt\
@@ -340,6 +340,8 @@ phases:
     refs:
     - docs/SPEC.md
     agent: python-engineer
+    claimed_by: python-engineer
+    claimed_at: '2026-11-08T21:00:28.450827Z'
   - id: live_integration_and_release.gate
     name: Verify live E2E receipt, GitHub v0.1.0 tag, and tela.yaml registration
     status: pending
