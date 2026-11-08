@@ -52,8 +52,16 @@ TV requires token authentication and the local token is missing, empty, or
 rejected, inspection reports `pairing_required`. The first authorized write
 may require approval on the television; approve it manually and retry if its
 outcome is unknown. Pairing tokens remain local in the per-device `token.txt`.
+Some firmware authorizes the Art channel without issuing a token. After a
+successful authorized write-path mode probe, the server records a local
+Art-channel authorization marker in `token.txt` if the TV issued no token.
+Fresh device directories still require that write-path authorization before
+read-only inspection can connect. An actual TV-issued token is never replaced.
+
 The WebSocket uses Samsung's local TLS interface on port 8002; the upstream
-library does not verify the television's self-signed certificate.
+library does not verify the television's self-signed certificate. Art requests
+use 150 ms spacing. Failed current-artwork and inventory reads reconnect and
+retry once after 200 ms; upload, selection, and deletion are never retried.
 
 `frame_put` checks Art Mode before upload and checks mode plus the pre-upload
 current artwork again before selection. If the viewer changes mode or artwork

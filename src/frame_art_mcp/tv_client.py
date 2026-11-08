@@ -61,18 +61,17 @@ class SamsungClient:
         try:
             if self.art is None:
                 # The library never retries unauthorized tokens without a token.
-                self.art = SamsungTVArt(
-                    self.device.ip,
-                    port=8002,
-                    token=token or None,
-                    token_file=str(token_path),
-                    timeout=3.0,
-                    key_press_delay=0,
-                    name="Frame Art MCP",
-                )
+                self.art = self._new_art(token, 3.0)
             self._timeout(3.0)
             mode = self.art.get_artmode()
             self._timeout(4.0)
+            if not read_only and mode in ("on", "off") and not token:
+                # Some Art channels authorize successfully without issuing a token.
+                # Record that explicit write-path authorization for future inspection.
+                if not token_path.exists() or not token_path.read_text().strip():
+                    token_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    token_path.write_text("art-channel-authorized\n")
+                    token_path.chmod(0o600)
             if mode == "on":
                 return "art", None
             if mode == "off":
@@ -82,6 +81,17 @@ class SamsungClient:
             return "unknown", "pairing_required"
         except (*_API_ERRORS, DeviceIOError):
             return "unknown", "ws_error"
+
+    def _new_art(self, token: str, timeout: float) -> SamsungTVArt:
+        return SamsungTVArt(
+            self.device.ip,
+            port=8002,
+            token=token or None,
+            token_file=str(self.directory / "token.txt"),
+            timeout=timeout,
+            key_press_delay=0.15,
+            name="Frame Art MCP",
+        )
 
     def _timeout(self, seconds: float) -> None:
         assert self.art is not None
@@ -97,7 +107,24 @@ class SamsungClient:
         if self.art is None:
             raise DeviceIOError("art_connection_unavailable")
         try:
-            return getattr(self.art, method)(*args, **kwargs)
+            try:
+                return getattr(self.art, method)(*args, **kwargs)
+            except _REMOTE_ERRORS:
+                if method not in ("get_current", "available"):
+                    raise
+                timeout = self.art.timeout
+                try:
+                    self.art.close()
+                except _REMOTE_ERRORS:
+                    _LOG.debug("Discarding an already disconnected Art socket")
+                self.art = None
+                time.sleep(0.2)
+                try:
+                    token = (self.directory / "token.txt").read_text().strip()
+                except FileNotFoundError:
+                    token = ""
+                self.art = self._new_art(token, timeout)
+                return getattr(self.art, method)(*args, **kwargs)
         except _API_ERRORS as exc:
             raise DeviceIOError(type(exc).__name__) from exc
 

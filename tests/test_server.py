@@ -92,6 +92,133 @@ def test_readonly_missing_token_never_opens_websocket(
     assert client(tmp_path).probe(read_only=True) == ("unknown", "pairing_required")
 
 
+@pytest.mark.parametrize("mode,expected", [("on", "art"), ("off", "tv")])
+@pytest.mark.parametrize("token", [None, "", "  "])
+def test_write_probe_records_tokenless_authorization(
+    tmp_path, metadata_http, monkeypatch, mode, expected, token
+):
+    token_path = tmp_path / "token.txt"
+    if token is not None:
+        token_path.write_text(token)
+
+    class Art:
+        connection = None
+
+        def __init__(self, *args, **kwargs):
+            assert kwargs["key_press_delay"] == 0.15
+
+        def get_artmode(self):
+            return mode
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(tv_client, "SamsungTVArt", Art)
+    assert client(tmp_path).probe(read_only=True) == ("unknown", "pairing_required")
+    tv = client(tmp_path)
+    assert tv.probe() == (expected, None)
+    tv.close()
+    assert token_path.read_text().strip()
+    assert token_path.stat().st_mode & 0o777 == 0o600
+    assert client(tmp_path).probe(read_only=True) == (expected, None)
+
+
+@pytest.mark.parametrize("mode", ["unexpected", "on"])
+def test_write_probe_never_overwrites_a_library_issued_token(
+    tmp_path, metadata_http, monkeypatch, mode
+):
+    token_path = tmp_path / "token.txt"
+
+    class Art:
+        connection = None
+
+        def __init__(self, *args, **kwargs):
+            return None
+
+        def get_artmode(self):
+            if mode == "on":
+                token_path.write_text("issued-by-tv")
+            return mode
+
+    monkeypatch.setattr(tv_client, "SamsungTVArt", Art)
+    client(tmp_path).probe()
+    if mode == "on":
+        assert token_path.read_text() == "issued-by-tv"
+    else:
+        assert not token_path.exists()
+
+
+@pytest.mark.parametrize("method", ["get_current", "available"])
+@pytest.mark.parametrize("persistent_failure", [False, True])
+def test_read_queries_reconnect_once(
+    tmp_path, metadata_http, monkeypatch, method, persistent_failure
+):
+    (tmp_path / "token.txt").write_text("valid")
+    attempts, instances, sleeps = [], [], []
+    monkeypatch.setattr(tv_client.time, "sleep", sleeps.append)
+
+    class Art:
+        connection = None
+
+        def __init__(self, *args, **kwargs):
+            self.timeout = kwargs["timeout"]
+            self.closed = False
+            assert kwargs["token"] == "valid"
+            assert kwargs["key_press_delay"] == 0.15
+            instances.append(self)
+
+        def get_artmode(self):
+            return "on"
+
+        def query(self, *args):
+            attempts.append(args)
+            if len(attempts) == 1 or persistent_failure:
+                raise exceptions.ConnectionFailure("Disconnected")
+            return (
+                {"content_id": "base"}
+                if method == "get_current"
+                else [{"content_id": "owned"}]
+            )
+
+        get_current = available = query
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(tv_client, "SamsungTVArt", Art)
+    tv = client(tmp_path)
+    assert tv.probe(read_only=True) == ("art", None)
+    operation = tv.current if method == "get_current" else tv.available
+    if persistent_failure:
+        with pytest.raises(DeviceIOError, match="ConnectionFailure"):
+            operation()
+    else:
+        assert operation() == ("base" if method == "get_current" else {"owned"})
+    assert attempts == ([(), ()] if method == "get_current" else [("MY-C0002",)] * 2)
+    assert len(instances) == 2 and instances[0].closed
+    assert instances[1].timeout == 4.0
+    assert sleeps == [0.2]
+    tv.close()
+
+
+@pytest.mark.parametrize("method", ["upload", "select_image", "delete"])
+def test_mutations_are_never_retried(tmp_path, monkeypatch, method):
+    attempts = []
+
+    class Art:
+        def mutation(self, *args, **kwargs):
+            attempts.append(method)
+            raise exceptions.ConnectionFailure("Outcome unknown")
+
+        upload = select_image = delete = mutation
+
+    tv = client(tmp_path)
+    tv.art = Art()
+    with pytest.raises(DeviceIOError, match="ConnectionFailure"):
+        tv._call(method, "test")
+    assert attempts == [method]
+
+
 def test_rejected_token_has_no_unauthenticated_retry(
     tmp_path, metadata_http, monkeypatch
 ):
