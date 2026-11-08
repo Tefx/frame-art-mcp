@@ -29,7 +29,7 @@ project_guidance: '1. Treat docs/SPEC.md as the authoritative contract for all m
 phases:
 - id: core_implementation
   name: Core MCP Server, Optical Pipeline, Crash-Safe Ledger & Unit Tests
-  status: in_progress
+  status: done
   gate: All deterministic unit and protocol-double tests (tests/test_optics.py, tests/test_ledger.py,
     tests/test_discovery.py, tests/test_server.py) pass via pytest and all docs/SPEC.md
     Sections 1-5 contracts are verified.
@@ -192,7 +192,7 @@ phases:
       - docs/SPEC.md Sections 1-5'
   - id: core_implementation.gate
     name: Verify core implementation against docs/SPEC.md and unit test suite
-    status: claimed
+    status: done
     description: 'step_type: gate
 
       repo_change_policy: no_repo_change
@@ -238,9 +238,34 @@ phases:
     agent: gate-reviewer
     claimed_by: gate-reviewer
     claimed_at: '2026-11-08T20:52:37.988760Z'
+    done_at: '2026-11-08T21:00:28.144865+00:00'
+    evidence: 'Artifact:
+
+      - Gate report: .vectl/gate/core_implementation.report.json (gate.report.v2,
+      status=PASS, reviewer=gate-reviewer, target_ref=git:453cc2b60a624afd32fcfc3a8e2ddf5ae590f019)
+
+      - Binding: .vectl/gate/core_implementation.binding.json
+
+
+      Verification:
+
+      - Run: python3 ~/.pi/agent/scripts/review_report_validator.py --kind gate --binding
+      .vectl/gate/core_implementation.binding.json .vectl/gate/core_implementation.report.json
+      -> {"valid":true,"binding_checked":true,"kind":"gate","schema_version":"gate.report.v2","evidence_disposition":"POSITIVE_GATE_EVIDENCE","errors":[]}
+
+      - Run: PYTHONDONTWRITEBYTECODE=1 uv run pytest -q -p no:cacheprovider -> 102
+      passed in 21.30s (exit 0)
+
+      - Proven requirements: REQ-DISCOVERY-PINNING, REQ-OPTICS-5STAGE, REQ-LEDGER-WAL-RECONCILE,
+      REQ-WORKER-SERIAL-SAFETY, REQ-MCP-TOOLS-RESOURCE-TESTS
+
+
+      Spec link:
+
+      - docs/SPEC.md Sections 1-5'
 - id: live_integration_and_release
   name: Live Samsung Frame 65 E2E Verification, GitHub v0.1.0 Release & Tela Registration
-  status: locked
+  status: pending
   gate: Live E2E receipt against 192.168.88.6 verified (MY_F0205 and MY_F0206 cleaned
     up and SAM-S1110760 restored when tv_mode=='art', or safe gate blocking and offline
     clear queueing verified if off/tv), GitHub repo Tefx/frame-art-mcp pushed with
