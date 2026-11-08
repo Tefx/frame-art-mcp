@@ -192,7 +192,7 @@ phases:
       - docs/SPEC.md Sections 1-5'
   - id: core_implementation.gate
     name: Verify core implementation against docs/SPEC.md and unit test suite
-    status: pending
+    status: claimed
     description: 'step_type: gate
 
       repo_change_policy: no_repo_change
@@ -236,6 +236,8 @@ phases:
     depends_on:
     - core_implementation.implement_core
     agent: gate-reviewer
+    claimed_by: gate-reviewer
+    claimed_at: '2026-11-08T20:52:37.988760Z'
 - id: live_integration_and_release
   name: Live Samsung Frame 65 E2E Verification, GitHub v0.1.0 Release & Tela Registration
   status: locked
